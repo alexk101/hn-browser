@@ -1,34 +1,76 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from __future__ import annotations
+
+from sqlalchemy import Column, ForeignKey, create_engine, Table
+from sqlalchemy_utils import database_exists, create_database
+from sqlalchemy.orm import (
+    sessionmaker,
+    relationship,
+    DeclarativeBase,
+    Mapped,
+    mapped_column,
+)
+from appdirs import user_cache_dir
+from pathlib import Path
 from datetime import datetime
 
-python_hn_post = {
-    'id': 0,
-    'date_added': datetime.now(), 
-    'by': '', 
-    'descendants': 0,
-    'score': 0,
-    'time': 0, 
-    'title': '',
-    'type': '',
-    'url': '',
-    'text': ''
-}
+CACHE = f"sqlite:///{user_cache_dir('hn-browser')}/hackernews.db"
 
-hn_post = [
-    Column('id', Integer, primary_key = True),
-    Column('date_added', DateTime), 
-    Column('by', String), 
-    Column('descendants', Integer),
-    Column('score', Integer),
-    Column('time', DateTime),
-    Column('title', String),
-    Column('type', String),
-    Column('url', String),
-    Column('text', String)
-]
+# declarative base class
+class Base(DeclarativeBase):
+    pass
 
-kids = [
-    Column('id', Integer),
-    Column('child', String, primary_key=True)
-]
 
+association_table = Table(
+    "post_tag_link",
+    Base.metadata,
+    Column("post_id", ForeignKey("hn_bookmarks.id")),
+    Column("tag_id", ForeignKey("tags.id")),
+)
+
+
+class Post(Base):
+    __tablename__ = "hn_bookmarks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    date_added: Mapped[datetime]
+    author: Mapped[str]
+    descendants: Mapped[int]
+    score: Mapped[int]
+    time: Mapped[datetime]
+    title: Mapped[str]
+    type: Mapped[str]
+    url: Mapped[str]
+    text: Mapped[str | None]
+    img: Mapped[str]
+    tags: Mapped[list[Tag]] = relationship(secondary=association_table)
+
+
+class Child(Base):
+    __tablename__ = "hn_children"
+
+    id: Mapped[int]
+    child: Mapped[str] = mapped_column(primary_key=True)
+
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    description: Mapped[str]
+
+
+class DBM:
+    def __init__(self) -> None:
+        if database_exists(CACHE):
+            print(f"DB exists")
+        else:
+            Path(user_cache_dir("hn-browser")).mkdir(parents=True, exist_ok=True)
+            print(f"Creating DB")
+            print(CACHE)
+            create_database(CACHE)
+
+        self.engine = create_engine(CACHE, echo=False)
+        Base.metadata.create_all(self.engine)
+
+        Session = sessionmaker(bind=self.engine)
+        self.session = Session()

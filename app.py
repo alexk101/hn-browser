@@ -4,7 +4,7 @@ import dash
 
 app = Dash(
     __name__,
-    external_stylesheets=[dbc.themes.BOOTSTRAP],
+    external_stylesheets=[dbc.themes.DARKLY],
     suppress_callback_exceptions=True,
     use_pages=True,
     meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
@@ -12,6 +12,7 @@ app = Dash(
 
 # The app.layout components contains what is displayed by the web app
 app.layout = html.Div([dash.page_container])
+
 
 def run() -> None:
     """A function which starts the web app."""
