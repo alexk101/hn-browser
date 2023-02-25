@@ -47,6 +47,21 @@ def make_card(link: Post):
         if len(temp) > 100:
             description = " ".join(temp[:50]) + "..."
 
+    inner_links = [
+        dbc.Button(
+            "Show HN",
+            href=HN_LINK.format(id=link.id),
+            target="_blank",
+        )
+    ]
+
+    if link.url is not None:
+        inner_links.append(
+            dbc.Button("Show Post", href=link.url, target="_blank")
+        )
+
+    links = dbc.ButtonGroup(inner_links)
+
     return dbc.Card(
         [
             dbc.CardImg(src=link.img, top=True, className="img-fluid rounded-start"),
@@ -55,16 +70,7 @@ def make_card(link: Post):
                     html.H4(link.title, className="card-title"),
                     html.Hr(),
                     html.P(description, className="card-text"),
-                    dbc.ButtonGroup(
-                        [
-                            dbc.Button(
-                                "Show HN",
-                                href=HN_LINK.format(id=link.id),
-                                target="_blank",
-                            ),
-                            dbc.Button("Show Post", href=link.url, target="_blank"),
-                        ]
-                    ),
+                    links,
                     html.Hr(),
                     html.H6(f"Date Added: {link.date_added.strftime('%d %B, %Y')}"),
                     html.H6(f"Date Created: {link.time.strftime('%d %B, %Y')}"),

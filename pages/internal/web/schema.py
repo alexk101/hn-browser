@@ -39,9 +39,9 @@ class Post(Base):
     time: Mapped[datetime]
     title: Mapped[str]
     type: Mapped[str]
-    url: Mapped[str]
+    url: Mapped[str | None]
     text: Mapped[str | None]
-    img: Mapped[str]
+    img: Mapped[str | None]
     tags: Mapped[list[Tag]] = relationship(secondary=association_table)
 
 

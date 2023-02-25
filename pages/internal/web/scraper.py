@@ -76,7 +76,7 @@ class MultiScraper:
         try:
             async with session.get(url=url) as response:
                 resp = await response.read()
-                resp = resp.decode("utf-8")
+                resp = resp.decode("utf-8", errors='ignore')
                 if len(resp) and "Sorry" not in resp:
                     if not self.silent:
                         print(
@@ -97,6 +97,10 @@ class MultiScraper:
                             Child(**{"id": resp_dec["id"], "child": child})
                             for child in resp_dec.pop("kids")
                         ]
+
+                    # FIXME
+                    # Validation
+
                     post = Post(**resp_dec)
                     if (not self.silent) and self.verbose:
                         print(post)
@@ -121,7 +125,8 @@ class MultiScraper:
             tasks = []
             for record in ret:
                 if record[0] is not None:
-                    tasks.append(self.get_image(record[0].url, session))
+                    if record[0].url is not None:
+                        tasks.append(self.get_image(record[0].url, session))
             images = await asyncio.gather(*tasks)
             for record, image in zip(ret, images):
                 if record[0] is not None:
@@ -133,6 +138,9 @@ class MultiScraper:
     def save(self):
         if len(self.posts):
             print(f"Updating DB")
+
+            for ind, x in enumerate(self.posts):
+                print(f"{ind}: {x.url}")
 
             # Add new bookmarks
             inter.DBMi.session.add_all(self.posts)
