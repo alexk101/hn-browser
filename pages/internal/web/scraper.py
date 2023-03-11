@@ -39,7 +39,9 @@ class MultiScraper:
 
         self.save()
 
-    async def get_image(self, url: str, session: aiohttp.ClientSession):
+    async def get_image(self, url: str | None, session: aiohttp.ClientSession):
+        if url is None:
+            return ""
         try:
             async with session.get(url=url) as response:
                 resp = await response.read()
@@ -125,8 +127,7 @@ class MultiScraper:
             tasks = []
             for record in ret:
                 if record[0] is not None:
-                    if record[0].url is not None:
-                        tasks.append(self.get_image(record[0].url, session))
+                    tasks.append(self.get_image(record[0].url, session))
             images = await asyncio.gather(*tasks)
             for record, image in zip(ret, images):
                 if record[0] is not None:
