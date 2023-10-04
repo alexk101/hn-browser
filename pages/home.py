@@ -1,6 +1,5 @@
 from pathlib import Path
-
-from dash import html
+from dash import Input, Output, html, dcc, callback
 import dash_bootstrap_components as dbc
 import dash
 from typing import List, Dict
@@ -36,6 +35,17 @@ def get_bookmarks(path: Path = DEFAULT_BOOKMARKS) -> Dict[datetime, str]:
             bar()
 
     return output
+
+
+@callback(
+    Output('home-page', 'children'), 
+    Input('rel-img', 'n_clicks')
+)
+def reload_imgs(n_click: int):
+    missing_imgs = inter.DBMi.session.query(Post).filter(Post.img.is_(None)).all()
+    scraper = MultiScraper({x.date_added:BASE_ROUTE.format(id=x.id) for x in missing_imgs})
+    scraper.update()
+    return get_page()
 
 
 def make_card(link: Post):
@@ -89,11 +99,22 @@ def get_card_row(links: List[Post]):
 
 
 def get_page():
-    # Update Datebase with new bookmarks
-    MultiScraper(get_bookmarks())
+    # Update Database with new bookmarks
+    scraper = MultiScraper(get_bookmarks())
+    scraper.save()
 
     # Query DB
     bookmarks: List[Post] = inter.DBMi.session.query(Post).all()
+
+    nav = dbc.Nav(
+        [
+            dbc.DropdownMenu(
+                [dbc.DropdownMenuItem("Reload Images", id='rel-img')],
+                label="Options",
+                nav=True,
+            ),
+        ]
+    )
 
     # Construct Bookmarks
     padded_bookmarks = bookmarks + [None] * (len(bookmarks) % ROW_LEN)
@@ -103,7 +124,7 @@ def get_page():
         for y in range(ROW_LEN):
             row.append(padded_bookmarks[(x * ROW_LEN) + y])
         chunked.append(row)
-    return dbc.Container([get_card_row(row) for row in chunked], id="home-page")
+    return dbc.Container([nav]+[get_card_row(row) for row in chunked], id="home-page")
 
 
 def layout():

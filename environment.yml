@@ -59,4 +59,4 @@ dependencies:
   - aiodns
   - sqlalchemy-utils
   - appdirs
-  - sqlalchemy
+  - sqlalchemy>=2.0.0

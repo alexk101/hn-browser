@@ -12,6 +12,7 @@ from sqlalchemy.orm import (
 from appdirs import user_cache_dir
 from pathlib import Path
 from datetime import datetime
+import logging
 
 CACHE = f"sqlite:///{user_cache_dir('hn-browser')}/hackernews.db"
 
@@ -58,16 +59,36 @@ class Tag(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str]
 
+class Error(Base):
+    __tablename__ = "post_errors"
+
+    url: Mapped[str] = mapped_column(primary_key=True)
+    type: Mapped[str] = mapped_column(primary_key=True)
+    time: Mapped[datetime] = mapped_column(primary_key=True)
+    description: Mapped[str]
 
 class DBM:
     def __init__(self) -> None:
+        # Check if DB exists. Create if not
         if database_exists(CACHE):
             print(f"DB exists")
+            print(CACHE)
         else:
             Path(user_cache_dir("hn-browser")).mkdir(parents=True, exist_ok=True)
             print(f"Creating DB")
-            print(CACHE)
             create_database(CACHE)
+
+        # Check if odbc config exists. Create if not
+        db_config_out = Path.home() / '.odbc.ini'
+        db_config_src = (Path(__file__)/'..'/'..'/'..'/'..'/'.odbc.ini').resolve()
+        if not db_config_out.exists():
+            with open(db_config_src, 'r') as fp:
+                db_path = Path(user_cache_dir("hn-browser")) / 'hackernews.db'
+                conf = ''.join(fp.readlines()).format(db_dir=str(db_path))
+            with open(db_config_out, 'w') as fp:
+                fp.write(conf)
+
+        logging.info(f'DB location: {CACHE}')
 
         self.engine = create_engine(CACHE, echo=False)
         Base.metadata.create_all(self.engine)
