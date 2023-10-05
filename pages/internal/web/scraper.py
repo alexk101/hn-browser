@@ -107,6 +107,7 @@ class MultiScraper:
         err = None
         try:
             async with session.get(url=url) as response:
+                response.headers
                 resp = await response.read()
                 resp = resp.decode("utf-8", errors='ignore')
                 if len(resp) and "Sorry" not in resp:
@@ -278,3 +279,53 @@ class BingImgSearch():
 
     def get_urls(self):
         return asyncio.run(self.collect())
+
+async def validate_all(imgs: List[Optional[str]]) -> List[Optional[str]]:
+    image_formats = (
+        "image/png", 
+        "image/jpeg", 
+        "image/jpg", 
+        'image/gif',
+        'image/svg+xml'
+    )
+
+    async def validate(
+        img_url: Optional[str], session: aiohttp.ClientSession
+    ) -> Optional[bool]:
+        valid = False
+        if img_url is not None:
+            try:
+                async with session.head(url=img_url) as r:
+                    if "Content-Type" not in r.headers:
+                        print(f'{img_url} no content')
+                    else:
+                        if r.headers["Content-Type"] not in image_formats:
+                            print(f'{r.headers["Content-Type"]}: {img_url}')
+                        else:
+                            valid = True
+            except Exception as e:
+                print("Unable to get url {} due to {}.".format(img_url, e.__class__))
+                print("Unable to get url due to {}.".format(e.__class__))
+                err = Error(
+                    url=img_url, type=ErrorType.img.value, 
+                    time=datetime.now(), description=str(e.__class__)
+                )
+        return valid
+
+    timeout = aiohttp.ClientTimeout(total=40)
+    conn = aiohttp.TCPConnector(
+        limit=20, 
+        enable_cleanup_closed=True,
+    )
+    client = aiohttp.ClientSession(
+        timeout=timeout, 
+        connector=conn, 
+        connector_owner=True
+    )
+
+    async with client as session:
+        print("Validating image data")
+        resp: List[Optional[str]] = await asyncio.gather(
+            *[validate(url, session) for url in imgs]
+        )
+    return resp

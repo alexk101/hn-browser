@@ -4,11 +4,18 @@ import dash_bootstrap_components as dbc
 import dash
 from typing import List, Dict
 from datetime import datetime
-from .internal.web.scraper import MultiScraper, BingImgSearch, update_posts
+from .internal.web.scraper import (
+    MultiScraper, 
+    BingImgSearch, 
+    update_posts,
+    validate_all
+)
 from .css import *
 from .internal.web import interfaces as inter
 from .internal.web.schema import Post
 from alive_progress import alive_bar
+import asyncio
+import numpy as np
 
 DEFAULT_BOOKMARKS = Path(__file__).resolve().parent.parent / "bookmarks.txt"
 BASE_ROUTE = "https://hacker-news.firebaseio.com/v0/item/{id}.json"
@@ -111,6 +118,25 @@ def reload_imgs(n_click: int):
     return get_page()
 
 
+@callback(
+    Output('dummy', 'children'),
+    Input('chk-img', 'n_clicks'), 
+    prevent_initial_call=True
+)
+def check_images(n_click: int):
+    all_posts = inter.DBMi.session.query(Post).filter(Post.img.is_not(None)).all()
+
+    loop = asyncio.get_event_loop()
+    valid = loop.run_until_complete(validate_all([x.img for x in all_posts]))
+    valid = np.asarray(valid)
+    # Zero-sleep to allow underlying connections to close
+    loop.run_until_complete(asyncio.sleep(250))
+    loop.close()
+
+    print(f'valid: {valid.sum()}')
+    print(f'invalid: {(valid==False).sum()}')
+    return None
+
 def get_page():
     # Update Database with new bookmarks
     scraper = MultiScraper(get_bookmarks())
@@ -123,7 +149,10 @@ def get_page():
         [
             dbc.NavLink("Dashboard", active=True, href="/dash"),
             dbc.DropdownMenu(
-                [dbc.DropdownMenuItem("Reload Images", id='rel-img')],
+                [
+                    dbc.DropdownMenuItem("Reload Images", id='rel-img'),
+                    dbc.DropdownMenuItem("Check Images", id='chk-img')
+                ],
                 label="Options",
                 nav=True,
             ),
@@ -138,7 +167,13 @@ def get_page():
         for y in range(ROW_LEN):
             row.append(padded_bookmarks[(x * ROW_LEN) + y])
         chunked.append(row)
-    return dbc.Container([nav]+[get_card_row(row) for row in chunked], id="home-page")
+
+    contents = []
+    contents.append(html.Div(id='dummy', style={'display':'none'}))
+    contents.append(nav)
+    contents += [get_card_row(row) for row in chunked]
+
+    return dbc.Container(contents, id="home-page")
 
 
 def layout():
