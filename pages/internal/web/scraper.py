@@ -5,11 +5,12 @@ import asyncio
 import json
 from .schema import Child, Post, Error
 from . import interfaces as inter
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote_plus
 from datetime import datetime
 from sqlalchemy import update
 import logging
 from enum import Enum
+import re
 
 class ErrorType(Enum):
     """
@@ -59,27 +60,30 @@ class MultiScraper:
 
     async def get_image(
         self, url: Optional[str], session: aiohttp.ClientSession
-    ) -> Tuple[str, Optional[Error]]:
+    ) -> Tuple[Optional[str], Optional[Error]]:
         err = None
-        img = ''
+        img = None
         if url is not None:
             try:
                 async with session.get(url=url) as response:
                     resp = await response.read()
                     resp = resp.decode("utf-8")
                     if len(resp):
-                        if not self.silent:
-                            logging.info(
-                                "Successfully got image from {} with resp of length {}.".format(
-                                    url, len(resp)
-                                )
-                            )
                         soup = sp(resp, "html.parser")
                         images = soup.findAll("img")
                         if len(images):
-                            img: str = images[0].attrs["src"]
+                            if not self.silent:
+                                logging.info(
+                                    "Successfully got image from {} with resp of length {}.".format(
+                                        url, len(resp)
+                                    )
+                                )
+                            img = images[0].attrs["src"]
                             if not img.startswith("data:image"):
                                 img = urljoin(url, img)
+                        else:
+                            if not self.silent:
+                                logging.info("No images found at {}".format(url))
                     else:
                         logging.warning(f"Unable to get image from {url}. No response.")
                         err = Error(
@@ -118,6 +122,7 @@ class MultiScraper:
                     resp_dec["author"] = resp_dec.pop("by")
                     resp_dec["time"] = datetime.fromtimestamp(resp_dec.pop("time"))
                     resp_dec["date_added"] = time
+                    resp_dec['tags'] = []
 
                     # Construct Objects
                     if "kids" in resp_dec.keys():
@@ -128,7 +133,6 @@ class MultiScraper:
 
                     # FIXME
                     # Validation
-
                     post = Post(**resp_dec)
                     if (not self.silent) and self.verbose:
                         print(post)
@@ -150,8 +154,9 @@ class MultiScraper:
     async def get_all(self) -> Tuple[List[AsyncAPIData],List[Error]]:
 
         timeout = aiohttp.ClientTimeout(total=20)
+        conn = aiohttp.TCPConnector(limit=50)
 
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with aiohttp.ClientSession(timeout=timeout, connector=conn) as session:
             print("Querying HN API for data")
             resp: List[Tuple[AsyncAPIData, Optional[Error]]] = await asyncio.gather(
                 *[self.get_api_data(record, session) for record in self.links.items()]
@@ -204,12 +209,72 @@ class MultiScraper:
             print("Saved DB")
 
 
-    def update(self):
-        if len(self.posts):
-            print("Updating DB")
-            temp = [x.__dict__ for x in self.posts]
-            for x in temp:
-                del x['_sa_instance_state']
-            inter.DBMi.session.execute(update(Post), temp)
+def update_posts(posts: List[Post]):
+    if len(posts):
+        print("Updating DB")
+        temp = [x.to_dict() for x in posts]
+        # for x in temp:
+        #     if '_sa_instance_state' in x.keys():
+        #         del x['_sa_instance_state']
+        print(f'temp: {temp}')
+        inter.DBMi.session.execute(update(Post), temp)
+        # Commit changes
+        inter.DBMi.session.commit()
+        print("Updated DB")
 
-            print("Updated DB")
+
+class BingImgSearch():
+    def __init__(self) -> None:
+        self.base_url = 'https://www.bing.com/images/search?q={q}'
+        self.queries = []
+        self.titles = []
+
+    def add_query(self, q: str):
+        self.queries.append(self.base_url.format(q=quote_plus(q)))
+        self.titles.append(q)
+
+    async def query_img(
+        self, url: str, session: aiohttp.ClientSession
+    ) -> Optional[str]:
+
+        image = None
+
+        try:
+            async with session.get(url=url) as response:
+                resp = await response.read()
+                resp = resp.decode("utf-8", errors='ignore')
+                if len(resp):
+                    images = re.findall('murl&quot;:&quot;(.*?)&quot;', resp)
+                    # print(f'found {len(images)} images')
+                    if images:
+                        image = images[0]
+                    else:
+                        logging.info("Bing found no images for{}".format(url))
+                else:
+                    print(f"Unable to get url {url}. No response")
+                    err = Error(
+                        url=url, type=ErrorType.resp.value, 
+                        time=datetime.now(), description='no response'
+                    )
+        except Exception as e:
+            print("Unable to get url {} due to {}.".format(url, e.__class__))
+            err = Error(
+                url=url, type=ErrorType.img.value, 
+                time=datetime.now(), description=str(e.__class__)
+            )
+
+        return image
+
+    async def collect(self):
+        timeout = aiohttp.ClientTimeout(total=20)
+        conn = aiohttp.TCPConnector(limit=50)
+
+        async with aiohttp.ClientSession(timeout=timeout, connector=conn) as session:
+            print("Querying Bing for image data")
+            resp: List[Optional[str]] = await asyncio.gather(
+                *[self.query_img(url, session) for url in self.queries]
+            )
+        return resp
+
+    def get_urls(self):
+        return asyncio.run(self.collect())

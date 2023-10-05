@@ -8,6 +8,7 @@ from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
     mapped_column,
+    MappedAsDataclass
 )
 from appdirs import user_cache_dir
 from pathlib import Path
@@ -17,8 +18,12 @@ import logging
 CACHE = f"sqlite:///{user_cache_dir('hn-browser')}/hackernews.db"
 
 # declarative base class
-class Base(DeclarativeBase):
-    pass
+class Base(DeclarativeBase, MappedAsDataclass):
+    def to_dict(self):
+        dict_ = {}
+        for key in self.__mapper__.c.keys():
+            dict_[key] = getattr(self, key)
+        return dict_
 
 
 association_table = Table(
@@ -40,10 +45,11 @@ class Post(Base):
     time: Mapped[datetime]
     title: Mapped[str]
     type: Mapped[str]
-    url: Mapped[str | None]
-    text: Mapped[str | None]
-    img: Mapped[str | None]
     tags: Mapped[list[Tag]] = relationship(secondary=association_table)
+    url: Mapped[str | None] = mapped_column(default=None)
+    text: Mapped[str | None] = mapped_column(default=None)
+    img: Mapped[str | None] = mapped_column(default=None)
+    
 
 
 class Child(Base):

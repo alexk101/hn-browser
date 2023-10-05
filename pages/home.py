@@ -4,7 +4,7 @@ import dash_bootstrap_components as dbc
 import dash
 from typing import List, Dict
 from datetime import datetime
-from .internal.web.scraper import MultiScraper
+from .internal.web.scraper import MultiScraper, BingImgSearch, update_posts
 from .css import *
 from .internal.web import interfaces as inter
 from .internal.web.schema import Post
@@ -35,17 +35,6 @@ def get_bookmarks(path: Path = DEFAULT_BOOKMARKS) -> Dict[datetime, str]:
             bar()
 
     return output
-
-
-@callback(
-    Output('home-page', 'children'), 
-    Input('rel-img', 'n_clicks')
-)
-def reload_imgs(n_click: int):
-    missing_imgs = inter.DBMi.session.query(Post).filter(Post.img.is_(None)).all()
-    scraper = MultiScraper({x.date_added:BASE_ROUTE.format(id=x.id) for x in missing_imgs})
-    scraper.update()
-    return get_page()
 
 
 def make_card(link: Post):
@@ -98,6 +87,30 @@ def get_card_row(links: List[Post]):
     return dbc.Row(dbc.CardGroup(cards))
 
 
+@callback(
+    Output('home-page', 'children'), 
+    Input('rel-img', 'n_clicks'), 
+    prevent_initial_call=True
+)
+def reload_imgs(n_click: int):
+    missing_imgs = inter.DBMi.session.query(Post).filter(Post.img.is_(None)).all()
+    bing = BingImgSearch()
+
+    temp = {}
+    for post in missing_imgs:
+        if post.img is None:
+            temp[post.title] = post
+            bing.add_query(post.title)
+
+    imgs = dict(zip(bing.titles, bing.get_urls()))
+
+    for title, img in imgs.items():
+        temp[title].img = img
+    posts = list(temp.values())
+    update_posts(posts)
+    return get_page()
+
+
 def get_page():
     # Update Database with new bookmarks
     scraper = MultiScraper(get_bookmarks())
@@ -108,6 +121,7 @@ def get_page():
 
     nav = dbc.Nav(
         [
+            dbc.NavLink("Dashboard", active=True, href="/dash"),
             dbc.DropdownMenu(
                 [dbc.DropdownMenuItem("Reload Images", id='rel-img')],
                 label="Options",
