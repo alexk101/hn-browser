@@ -54,9 +54,10 @@ dependencies:
   - beautifulsoup4
   - tenacity
   - alive-progress
-  - aiohttp
   - cchardet
   - aiodns
   - sqlalchemy-utils
   - appdirs
   - sqlalchemy>=2.0.0
+  - trio
+  - asks

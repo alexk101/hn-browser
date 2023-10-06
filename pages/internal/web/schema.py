@@ -77,11 +77,11 @@ class DBM:
     def __init__(self) -> None:
         # Check if DB exists. Create if not
         if database_exists(CACHE):
-            print(f"DB exists")
+            print("DB exists")
             print(CACHE)
         else:
             Path(user_cache_dir("hn-browser")).mkdir(parents=True, exist_ok=True)
-            print(f"Creating DB")
+            print("Creating DB")
             create_database(CACHE)
 
         # Check if odbc config exists. Create if not
@@ -96,7 +96,7 @@ class DBM:
 
         logging.info(f'DB location: {CACHE}')
 
-        self.engine = create_engine(CACHE, echo=False)
+        self.engine = create_engine(CACHE, echo=False) # type: ignore
         Base.metadata.create_all(self.engine)
 
         Session = sessionmaker(bind=self.engine)

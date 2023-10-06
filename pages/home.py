@@ -1,6 +1,7 @@
 from pathlib import Path
 from dash import Input, Output, html, dcc, callback
 import dash_bootstrap_components as dbc
+from sqlalchemy import update
 import dash
 from typing import List, Dict
 from datetime import datetime
@@ -14,8 +15,8 @@ from .css import *
 from .internal.web import interfaces as inter
 from .internal.web.schema import Post
 from alive_progress import alive_bar
-import asyncio
 import numpy as np
+import trio
 
 DEFAULT_BOOKMARKS = Path(__file__).resolve().parent.parent / "bookmarks.txt"
 BASE_ROUTE = "https://hacker-news.firebaseio.com/v0/item/{id}.json"
@@ -126,15 +127,20 @@ def reload_imgs(n_click: int):
 def check_images(n_click: int):
     all_posts = inter.DBMi.session.query(Post).filter(Post.img.is_not(None)).all()
 
-    loop = asyncio.get_event_loop()
-    valid = loop.run_until_complete(validate_all([x.img for x in all_posts]))
+    valid = trio.run(validate_all, [x.img for x in all_posts])
     valid = np.asarray(valid)
-    # Zero-sleep to allow underlying connections to close
-    loop.run_until_complete(asyncio.sleep(250))
-    loop.close()
 
     print(f'valid: {valid.sum()}')
     print(f'invalid: {(valid==False).sum()}')
+
+    evict = []
+    for post, validity in zip(all_posts, valid):
+        if not validity:
+            evict.append(post.id)
+
+    stmnt = update(Post).where(Post.id.in_(evict)).values(img=None)
+    inter.DBMi.session.execute(stmnt)
+    inter.DBMi.session.commit()
     return None
 
 def get_page():
