@@ -1,7 +1,12 @@
 IMG_STYLE = {
-    "object-fit": "contain",
-    "width": "100%",
-    "max-height": "147px",
-    "margin-bottom": "1rem",
-    "padding-right": "10px",
+    "width": "120%",
+    'aspect-ratio' : '1 / 1',
+}
+
+NAV_ITEM = {'margin-right': '1rem'}
+
+OVERFLOW_TEXT = {
+    'overflow': 'hidden',
+    'white-space': 'nowrap',
+    'text-overflow': 'ellipsis'
 }
