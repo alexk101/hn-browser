@@ -64,6 +64,15 @@ class MultiScraper:
         output: List[Optional[str]],
         ind: int
     ):
+        """
+        Get the image from the url
+
+        Args:
+            url (Optional[str]): The url to get the image from
+            session (asks.Session): The session to use to get the image
+            output (List[Optional[str]]): The output list to store the image
+            ind (int): The index of the url in the list
+        """
         err = None
         img = None
         if url is not None:
@@ -109,6 +118,15 @@ class MultiScraper:
         output: List[AsyncAPIData],
         ind: int
     ):
+        """
+        Get the api data from the url
+
+        Args:
+            record (Tuple[datetime, str]): The record to get the api data from
+            session (asks.Session): The session to use to get the api data
+            output (List[AsyncAPIData]): The output list to store the api data
+            ind (int): The index of the record in the list
+        """
         time, url = record
         post = None
         children = None
@@ -131,6 +149,17 @@ class MultiScraper:
                 resp_dec["date_added"] = time
                 resp_dec['tags'] = []
 
+                # Get HTML content if URL exists
+                if "url" in resp_dec and resp_dec["url"]:
+                    try:
+                        html_resp = await session.get(resp_dec["url"], timeout=10)
+                        if html_resp.reason_phrase == 'OK':
+                            resp_dec['html'] = html_resp.content.decode("utf-8", errors='ignore')
+                            if not self.silent:
+                                logging.info(f"Successfully got HTML for {resp_dec['url']}")
+                    except Exception as e:
+                        logging.warning(f"Failed to get HTML for {resp_dec['url']}: {str(e)}")
+
                 # Construct Objects
                 if "kids" in resp_dec.keys():
                     children = [
@@ -138,8 +167,6 @@ class MultiScraper:
                         for child in resp_dec.pop("kids")
                     ]
 
-                # FIXME
-                # Validation
                 post = Post(**resp_dec)
                 if (not self.silent) and self.verbose:
                     print(post)
@@ -161,7 +188,12 @@ class MultiScraper:
         output[ind] = (post, children)
 
     async def get_all(self) -> List[AsyncAPIData]:
+        """
+        Get all the api data from the urls
 
+        Returns:
+            List[AsyncAPIData]: The list of api data
+        """
         posts: List[AsyncAPIData] = [(None,None)] * len(self.links)
         async with trio.open_nursery() as n:
             for ind, record in enumerate(self.links.items()):
@@ -184,6 +216,9 @@ class MultiScraper:
         return posts
 
     def save(self):
+        """
+        Save the posts and children to the database
+        """
         if len(self.posts):
             print("Saving DB")
 
@@ -203,6 +238,12 @@ class MultiScraper:
 
 
 def update_posts(posts: List[Post]):
+    """
+    Update the posts in the database
+
+    Args:
+        posts (List[Post]): The posts to update
+    """
     if len(posts):
         print("Updating DB")
         temp = [x.to_dict() for x in posts]
@@ -214,6 +255,9 @@ def update_posts(posts: List[Post]):
 
 
 class BingImgSearch():
+    """
+    Bing Image Search
+    """
     def __init__(self) -> None:
         self.base_url = 'https://www.bing.com/images/search?q={q}&first=1'
         self.queries = []

@@ -49,6 +49,7 @@ class Post(Base):
     url: Mapped[str | None] = mapped_column(default=None)
     text: Mapped[str | None] = mapped_column(default=None)
     img: Mapped[str | None] = mapped_column(default=None)
+    html: Mapped[str | None] = mapped_column(default=None)
     
 
 
