@@ -6,7 +6,8 @@ from dash import (
     html, 
     dcc,
     ctx,
-    callback
+    callback,
+    dash_table
 )
 import dash_bootstrap_components as dbc
 from sqlalchemy import update
@@ -114,14 +115,24 @@ def get_card_row(links: List[Post]):
 
 
 @callback(
-    Output('home-page', 'children'),
+    Output("content-container", "children"),
+    Input("view-selector", "value"),
+)
+def update_view(view_type: list):
+    if not view_type:  # Empty list means switch is off
+        return get_native(1)
+    else:
+        return get_table()
+
+
+@callback(
+    Output("home-page", "children"),
     Input("page-num", "active_page"),
-    Input('rel-img', 'n_clicks'), 
+    Input('rel-img', 'n_clicks'),
     prevent_initial_call=True
 )
 def reload_imgs(page: int, n_click: int):
     context = ctx.triggered_id
-    print(context)
     if context == 'rel-img':
         missing_imgs = inter.DBMi.session.query(Post).filter(Post.img.is_(None)).all()
         bing = BingImgSearch()
@@ -138,8 +149,7 @@ def reload_imgs(page: int, n_click: int):
             temp[title].img = img
         posts = list(temp.values())
         update_posts(posts)
-    print('triggered')
-    return get_page(page)
+    return get_native(page if page is not None else 1)
 
 
 @callback(
@@ -167,43 +177,10 @@ def check_images(n_click: int):
     return None
 
 
-def get_page(page: int):
-    # Update Database with new bookmarks
-    scraper = MultiScraper(get_bookmarks())
-    scraper.save()
-
+def get_native(page: int):
     n_item = ROW_LEN * 3
     total_items = inter.DBMi.session.query(Post).count()
-    # Query DB
     bookmarks: List[Post] = inter.DBMi.session.query(Post).limit(n_item).offset((page-1)*n_item).all()
-
-    nav = dbc.Navbar(
-        [
-            dbc.NavbarBrand('HN Browser', style={'margin-left':'1rem'}),
-            dbc.Container(
-                [
-                    dbc.NavLink("Dashboard", active=True, href="/dash", style=NAV_ITEM),
-                    dbc.DropdownMenu(
-                        [
-                            dbc.DropdownMenuItem("Reload Images", id='rel-img'),
-                            dbc.DropdownMenuItem("Check Images", id='chk-img')
-                        ],
-                        label="Options",
-                        nav=True,
-                        style=NAV_ITEM
-                    )
-                ],
-                fluid = True,
-                style={
-                    'justify-content': 'flex-end',
-                    'padding': 0
-                },
-                # horizontal='end'
-            )
-        ],
-        color="dark",
-        dark=True,
-    )
 
     # Construct Bookmarks
     padded_bookmarks = bookmarks + [None] * (len(bookmarks) % ROW_LEN)
@@ -225,13 +202,123 @@ def get_page(page: int):
     )
 
     contents = []
-    contents.append(html.Div(id='dummy', style={'display':'none'}))
-    contents.append(nav)
     contents += [get_card_row(row) for row in chunked]
     contents.append(pagination)
 
-    return dbc.Container(contents, id="home-page")
+    return dbc.Container(contents)
 
+def get_table():
+    """Get a DataTable view of all bookmarks"""
+    bookmarks: List[Post] = inter.DBMi.session.query(Post).all()
+    
+    table_data = [
+        {
+            'title': f'[{post.title}]({post.url})' if post.url else post.title,
+            'url': post.url,
+            'author': post.author,
+            'date_added': post.date_added.strftime('%Y-%m-%d'),
+            'score': post.score,
+            'comments': post.descendants,
+            'has_html': 1 if post.html is not None else 0
+        } for post in bookmarks
+    ]
+    
+    return dash_table.DataTable(
+        data=table_data,
+        columns=[
+            {'name': 'Title', 'id': 'title', 'presentation': 'markdown'},
+            {'name': 'URL', 'id': 'url'},
+            {'name': 'Author', 'id': 'author'},
+            {'name': 'Date Added', 'id': 'date_added'},
+            {'name': 'Score', 'id': 'score'},
+            {'name': 'Comments', 'id': 'comments'},
+            {'name': 'Has HTML', 'id': 'has_html', 'hideable': True}
+        ],
+        hidden_columns=['has_html'],
+        style_table={'overflowX': 'auto'},
+        style_cell={
+            'textAlign': 'left',
+            'minWidth': '100px',
+            'maxWidth': '500px',
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+        },
+        style_header={
+            'backgroundColor': 'rgb(230, 230, 230)',
+            'fontWeight': 'bold'
+        },
+        style_data_conditional=[
+            {
+                'if': {
+                    'filter_query': '{has_html} = 1',
+                    'column_id': 'title'
+                },
+                'backgroundColor': '#3D9970',
+                'color': 'white'
+            },
+            {
+                'if': {
+                    'filter_query': '{has_html} = 0',
+                    'column_id': 'title'
+                },
+                'backgroundColor': '#FF4136',
+                'color': 'white'
+            }
+        ],
+        page_size=20,
+        sort_action='native',
+        filter_action='native',
+        markdown_options={'link_target': '_blank'}  # Open links in new tab
+    )
+
+def get_page(page: int):
+    # Update Database with new bookmarks
+    new_bookmarks = get_bookmarks()
+    if new_bookmarks:  # Only create scraper if there are new bookmarks
+        scraper = MultiScraper(new_bookmarks)
+        scraper.save()
+    
+    nav = dbc.Navbar(
+        [
+            dbc.NavbarBrand('HN Browser', style={'margin-left':'1rem'}),
+            dbc.Container(
+                [
+                    dbc.NavLink("Dashboard", active=True, href="/dash", style=NAV_ITEM),
+                    dbc.Checklist(
+                        options=[
+                            {"label": "Table View", "value": "table"},
+                        ],
+                        value=[],
+                        id="view-selector",
+                        switch=True,
+                        style={"marginRight": "10px"}
+                    ),
+                    dbc.DropdownMenu(
+                        [
+                            dbc.DropdownMenuItem("Reload Images", id='rel-img'),
+                            dbc.DropdownMenuItem("Check Images", id='chk-img')
+                        ],
+                        label="Options",
+                        nav=True,
+                        style=NAV_ITEM
+                    )
+                ],
+                fluid = True,
+                style={
+                    'justify-content': 'flex-end',
+                    'padding': 0
+                },
+            )
+        ],
+        color="dark",
+        dark=True,
+    )
+
+    return html.Div([
+        html.Div(id='dummy', style={'display':'none'}),
+        nav,
+        html.Div(id="content-container")
+    ])
 
 def layout():
     return get_page(1)

@@ -48,6 +48,7 @@ if __name__ == "__main__":
 
     if args.refresh:
         os.remove(CACHE[10:])
+        args.refresh = False
 
     logging.basicConfig(level=args.log.value)
 
