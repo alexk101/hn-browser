@@ -98,7 +98,7 @@ class MultiScraper:
                         url=url, type=ErrorType.resp.value, 
                         time=datetime.now(), description='no response'
                     )
-            except Exception as e:
+            except* Exception as e:
                 logging.warning("Unable to get image from {} due to {}.".format(
                         url, 
                         e.__class__
@@ -157,7 +157,7 @@ class MultiScraper:
                             resp_dec['html'] = html_resp.content.decode("utf-8", errors='ignore')
                             if not self.silent:
                                 logging.info(f"Successfully got HTML for {resp_dec['url']}")
-                    except Exception as e:
+                    except* Exception as e:
                         logging.warning(f"Failed to get HTML for {resp_dec['url']}: {str(e)}")
 
                 # Construct Objects
@@ -166,7 +166,9 @@ class MultiScraper:
                         Child(**{"id": resp_dec["id"], "child": child})
                         for child in resp_dec.pop("kids")
                     ]
-
+                # Remove dead posts
+                if "dead" in resp_dec.keys():
+                    return
                 post = Post(**resp_dec)
                 if (not self.silent) and self.verbose:
                     print(post)
@@ -176,7 +178,7 @@ class MultiScraper:
                     url=url, type=ErrorType.resp.value, 
                     time=datetime.now(), description='no response'
                 )
-        except Exception as e:
+        except* Exception as e:
             print("Unable to get url {} due to {}.".format(url, e.__class__))
             err = Error(
                 url=url, type=ErrorType.url.value, 
@@ -291,7 +293,7 @@ class BingImgSearch():
                     url=url, type=ErrorType.resp.value, 
                     time=datetime.now(), description='no response'
                 )
-        except Exception as e:
+        except* Exception as e:
             print("Unable to get url {} due to {}.".format(url, e.__class__))
             err = Error(
                 url=url, type=ErrorType.bing.value, 
@@ -345,7 +347,7 @@ async def validate_all(imgs: List[Optional[str]]) -> np.ndarray:
                     else:
                         valid[ind] = True
                         logging.info("Successfully got url {}".format(img_url))
-            except Exception as e:
+            except* Exception as e:
                 err = Error(
                     url=img_url, type=ErrorType.img.value, 
                     time=datetime.now(), description=str(e.__class__)

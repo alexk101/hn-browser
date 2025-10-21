@@ -3,18 +3,24 @@ name = "hn-browser"
 version = "0.1.0"
 description = "A browser for bookmarked Hacker News links from Harmonic"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = "==3.13.7"
 dependencies = [
-    "alive-progress>=3.2.0",
-    "appdirs>=1.4.4",
-    "asks>=3.0.0",
-    "beautifulsoup4>=4.13.3",
-    "dash>=2.18.2",
-    "dash-bootstrap-components>=1.7.1",
-    "numpy>=2.2.3",
-    "polars>=1.23.0",
-    "pyarrow>=19.0.1",
+    "alive-progress",
+    "appdirs",
+    "asks",
+    "anyio[trio]>=4.11.0",
+    "beautifulsoup4",
+    "dash",
+    "dash-bootstrap-components",
+    "numpy",
+    "polars",
+    "pyarrow",
     "sqlalchemy>=2.0",
-    "sqlalchemy-utils>=0.41.2",
-    "trio>=0.29.0",
+    "sqlalchemy-utils",
 ]
+
+[tool.uv.extra-build-dependencies]
+    asks = ["h11", "anyio"]
+
+[tool.uv.sources]
+    asks = { git = "https://github.com/Cheaterman/asks" }
