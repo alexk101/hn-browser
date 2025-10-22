@@ -116,45 +116,32 @@ def get_card_row(links: List[Post]):
 
 @callback(
     Output("content-container", "children"),
-    Input("view-selector", "value"),
+    [
+        Input("view-selector", "value"),
+        Input("page-num", "data"),
+    ],
 )
-def update_view(view_type: list):
+def update_view(view_type: list, page: int):
     if not view_type:  # Empty list means switch is off
-        return get_native(1)
+        return get_native(page)
     else:
         return get_table()
 
 
 @callback(
-    Output("home-page", "children"),
-    Input("page-num", "active_page"),
-    Input('rel-img', 'n_clicks'),
+    Output("page-num", "data"),
+    [
+        Input("pagination", "active_page"),
+    ],
     prevent_initial_call=True
 )
-def reload_imgs(page: int, n_click: int):
-    context = ctx.triggered_id
-    if context == 'rel-img':
-        missing_imgs = inter.DBMi.session.query(Post).filter(Post.img.is_(None)).all()
-        bing = BingImgSearch()
-
-        temp = {}
-        for post in missing_imgs:
-            if post.img is None:
-                temp[post.title] = post
-                bing.add_query(post.title)
-
-        imgs = dict(zip(bing.titles, bing.get_urls()))
-
-        for title, img in imgs.items():
-            temp[title].img = img
-        posts = list(temp.values())
-        update_posts(posts)
-    return get_native(page if page is not None else 1)
+def reload_imgs(page: int):
+    return page
 
 
 @callback(
     Output('dummy', 'children'),
-    Input('chk-img', 'n_clicks'), 
+    [Input('chk-img', 'n_clicks')], 
     prevent_initial_call=True
 )
 def check_images(n_click: int):
@@ -192,7 +179,7 @@ def get_native(page: int):
         chunked.append(row)
 
     pagination = dbc.Pagination(
-        id='page-num', 
+        id='pagination', 
         max_value=np.ceil(total_items/n_item),
         first_last=True,
         previous_next=True,
@@ -315,10 +302,11 @@ def get_page(page: int):
     )
 
     return html.Div([
+        dcc.Store(id='page-num', data=1),
         html.Div(id='dummy', style={'display':'none'}),
         nav,
         html.Div(id="content-container")
     ])
 
-def layout():
+def layout(**kwargs):
     return get_page(1)
